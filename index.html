@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Abaco Digitale</title>
+<meta name="description" content="Abaco digitale interattivo per scuola primaria (k, h, da, u) con riporto opzionale.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%23f59e0b'/%3E%3Ccircle cx='22' cy='22' r='8' fill='%233b82f6'/%3E%3Ccircle cx='42' cy='22' r='8' fill='%23ef4444'/%3E%3Ccircle cx='22' cy='42' r='8' fill='%2322c55e'/%3E%3Ccircle cx='42' cy='42' r='8' fill='%23fff'/%3E%3C/svg%3E" />
+<style>
+  :root { --c-u:#3b82f6; --c-da:#ef4444; --c-h:#22c55e; --c-k:#f59e0b; }
+  *{box-sizing:border-box} html,body{height:100%}
+  body{margin:0;font-family:system-ui,-apple-system,'Segoe UI',Roboto,Ubuntu,Cantarell,Noto Sans,'Helvetica Neue',Arial;background:#f0f7ff;color:#111827;display:flex;align-items:center;justify-content:center;padding:24px}
+  .app{width:min(1100px,100%)}
+  .card{background:rgba(255,255,255,.85);border:1px solid #dbeafe;border-radius:24px;padding:24px;box-shadow:0 8px 20px rgba(15,23,42,.05)}
+  h1{margin:0 0 6px 0;font-size:clamp(24px,4vw,32px);font-weight:900;letter-spacing:.02em}
+  .subtle{color:#6b7280;font-size:14px}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .btn{border:1px solid #e5e7eb;background:#fff;padding:8px 12px;border-radius:12px;cursor:pointer;font-size:14px}
+  .btn:active{transform:scale(.98)}
+  .toggle{display:inline-flex;gap:8px;align-items:center;padding:8px 12px;background:#fff;border:1px solid #e5e7eb;border-radius:12px}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:24px}
+  @media (min-width:640px){.grid{grid-template-columns:repeat(4,1fr);gap:36px}}
+  .col{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .cloud{width:92px;height:56px;position:relative}
+  .rod-wrap{position:relative;width:60px;height:220px}
+  .rod{position:absolute;left:50%;transform:translateX(-50%);top:0;bottom:0;width:4px;background:#fecaca;border-radius:999px}
+  .bead{position:absolute;left:50%;transform:translateX(-50%);width:16px;height:16px;border-radius:999px;box-shadow:0 2px 6px rgba(0,0,0,.12)}
+  .counter{display:inline-block;min-width:24px;text-align:center;font-variant-numeric:tabular-nums;font-weight:700;font-size:22px}
+  .base{display:inline-flex;align-items:center;gap:10px;background:#f8fafc;border:1px solid #e5e7eb;border-radius:16px;padding:8px 10px}
+  .btn-round{width:36px;height:36px;border-radius:999px;border:1px solid #e5e7eb;background:#fff;font-size:18px;line-height:0;display:grid;place-items:center;cursor:pointer}
+  .btn-round:active{transform:scale(.96)}
+  .place-name{font-size:12px;color:#6b7280}
+  .total{text-align:center;margin-top:16px}
+  .total .label{color:#6b7280;font-size:14px}
+  .total .value{font-size:clamp(40px,8vw,64px);font-weight:900;letter-spacing:.06em;font-variant-numeric:tabular-nums}
+  .panel{display:flex;gap:8px;flex-wrap:wrap;align-items:end}
+  .field{display:flex;flex-direction:column;gap:6px}
+  .input{border:1px solid #e5e7eb;border-radius:12px;padding:8px 12px;width:160px;font-size:14px;background:#fff}
+</style>
+</head>
+<body>
+  <div class="app">
+    <div style="display:flex;justify-content:space-between;gap:16px;align-items:end;flex-wrap:wrap;margin-bottom:16px;">
+      <div>
+        <h1>ABACO</h1>
+        <div class="subtle">k = migliaia 🟧 · h = centinaia 🟩 · da = decine 🟥 · u = unità 🟦</div>
+      </div>
+      <div class="toolbar">
+        <label class="toggle">
+          <input id="carryToggle" type="checkbox" checked />
+          <span>Riporto automatico</span>
+        </label>
+        <button class="btn" id="fullscreenBtn" title="Schermo intero">Schermo intero</button>
+        <button class="btn" id="resetBtn">Azzera</button>
+        <div class="panel">
+          <div class="field">
+            <label for="setInput" class="subtle">Imposta numero (0–9999)</label>
+            <div style="display:flex;gap:8px;">
+              <input id="setInput" type="number" min="0" max="9999" class="input" value="0" />
+              <button class="btn" id="setBtn">Imposta</button>
+            </div>
+          </div>
+          <button class="btn" id="randBtn">Numero casuale</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="grid" id="grid"></div>
+    </div>
+
+    <div class="total">
+      <div class="label">Numero</div>
+      <div class="value" id="totalValue">0</div>
+      <div class="subtle" id="modeHint">(Con riporto automatico attivo)</div>
+    </div>
+  </div>
+
+<script>
+(function(){
+  "use strict";
+  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const PLACES = [
+    { key: "k", label: "k", name: "Migliaia", color: css("--c-k") },
+    { key: "h", label: "h", name: "Centinaia", color: css("--c-h") },
+    { key: "da", label: "da", name: "Decine", color: css("--c-da") },
+    { key: "u", label: "u", name: "Unità", color: css("--c-u") },
+  ];
+  const grid = document.getElementById("grid");
+  const totalValue = document.getElementById("totalValue");
+  const carryToggle = document.getElementById("carryToggle");
+  const resetBtn = document.getElementById("resetBtn");
+  const fullscreenBtn = document.getElementById("fullscreenBtn");
+  const setInput = document.getElementById("setInput");
+  const setBtn = document.getElementById("setBtn");
+  const randBtn = document.getElementById("randBtn");
+  const modeHint = document.getElementById("modeHint");
+
+  let digits = { k:0, h:0, da:0, u:0 };
+
+  function valueOf(d){ return d.k*1000 + d.h*100 + d.da*10 + d.u; }
+  function clamp(n,min,max){ return Math.max(min, Math.min(max,n)); }
+
+  function setAll(n){
+    const v = clamp(Math.floor(Math.abs(n)), 0, 9999);
+    digits = { k: Math.floor(v/1000)%10, h: Math.floor(v/100)%10, da: Math.floor(v/10)%10, u: v%10 };
+    render();
+  }
+
+  function handleAdd(placeKey, delta){
+    if (carryToggle.checked){
+      const amounts = { u:1, da:10, h:100, k:1000 };
+      const next = clamp(valueOf(digits) + delta * amounts[placeKey], 0, 9999);
+      setAll(next);
+    } else {
+      digits[placeKey] = clamp(digits[placeKey] + delta, 0, 9);
+      render();
+    }
+  }
+
+  function makeCloud(color, text){
+    const wrap = document.createElement("div");
+    wrap.className = "cloud";
+    wrap.innerHTML = `
+      <svg width="92" height="56" viewBox="0 0 92 56" style="position:absolute; inset:0;">
+        <path d="M22 42c-9.389 0-17-6.716-17-15s7.611-15 17-15c2.53 0 4.93.49 7.07 1.38C31.37 6.01 37.25 2 44 2c8.52 0 15.55 5.77 16.86 13.4C62.6 15.14 64.36 15 66.2 15 77.3 15 86 22.6 86 32s-8.7 20-19.8 20H28.5C25.2 52 22 48.7 22 45.4V42z" fill="${color}"></path>
+      </svg>
+      <span style="position:relative; z-index:1; display:flex; align-items:center; justify-content:center; width:100%; height:100%; color:#fff; font-weight:800; font-size:18px; user-select:none;">${text}</span>
+    `;
+    return wrap;
+  }
+
+  function renderColumn(place){
+    const col = document.createElement("div");
+    col.className = "col";
+    col.appendChild(makeCloud(place.color, place.label));
+
+    const rodWrap = document.createElement("div");
+    rodWrap.className = "rod-wrap";
+    const rod = document.createElement("div");
+    rod.className = "rod";
+    rodWrap.appendChild(rod);
+
+    const beadSize = 16, gap = 6, baseY = 220 - beadSize - 6;
+    for (let i=0; i<digits[place.key]; i++){
+      const bead = document.createElement("div");
+      bead.className = "bead";
+      bead.style.background = place.color;
+      bead.style.top = (baseY - i*(beadSize + gap)) + "px";
+      rodWrap.appendChild(bead);
+    }
+    col.appendChild(rodWrap);
+
+    const base = document.createElement("div");
+    base.className = "base";
+    const minus = document.createElement("button");
+    minus.className = "btn-round"; minus.textContent = "–"; minus.title = "diminuisci " + place.name;
+    minus.addEventListener("click", () => handleAdd(place.key, -1));
+    const counter = document.createElement("div");
+    counter.className = "counter"; counter.textContent = String(digits[place.key]);
+    const plus = document.createElement("button");
+    plus.className = "btn-round"; plus.textContent = "+"; plus.title = "aumenta " + place.name;
+    plus.addEventListener("click", () => handleAdd(place.key, +1));
+    base.appendChild(minus); base.appendChild(counter); base.appendChild(plus);
+
+    const label = document.createElement("div");
+    label.className = "place-name"; label.textContent = place.name;
+
+    col.appendChild(base); col.appendChild(label);
+    return col;
+  }
+
+  function render(){
+    grid.innerHTML = "";
+    ["k","h","da","u"].forEach(key => grid.appendChild(renderColumn(PLACES.find(p=>p.key===key))));
+    totalValue.textContent = valueOf(digits).toLocaleString("it-IT");
+    modeHint.textContent = carryToggle.checked ? "(Con riporto automatico attivo)" : "(Senza riporto: ogni colonna 0–9)";
+  }
+
+  document.getElementById("resetBtn").addEventListener("click", () => { digits = { k:0,h:0,da:0,u:0 }; render(); });
+  setBtn.addEventListener("click", () => setAll(Number(setInput.value || 0)));
+  randBtn.addEventListener("click", () => setAll(Math.floor(Math.random() * 10000)));
+  carryToggle.addEventListener("change", render);
+  fullscreenBtn.addEventListener("click", () => {
+    const el = document.documentElement;
+    if (!document.fullscreenElement) { if (el.requestFullscreen) el.requestFullscreen(); }
+    else { if (document.exitFullscreen) document.exitFullscreen(); }
+  });
+
+  const keyPlus = { "KeyQ":"k", "KeyW":"h", "KeyE":"da", "KeyR":"u" };
+  const keyMinus = { "KeyA":"k", "KeyS":"h", "KeyD":"da", "KeyF":"u" };
+  document.addEventListener("keydown", (e) => {
+    if (keyPlus[e.code]) { handleAdd(keyPlus[e.code], +1); e.preventDefault(); }
+    if (keyMinus[e.code]) { handleAdd(keyMinus[e.code], -1); e.preventDefault(); }
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
